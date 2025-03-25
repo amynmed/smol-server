@@ -5,6 +5,9 @@
 #include <ws2tcpip.h>
 
 
+#define ROOT_PATH "/root"
+#define INDEX   "index.html"
+
 
 #pragma comment(lib, "ws2_32.lib") // winsock lib
 
@@ -88,6 +91,9 @@ int main(int argc, char **argv)
         char *client_ip;
         int client_port;
 
+        // Threading
+        //
+
         HANDLE thread;
         DWORD threadId;
 
@@ -126,8 +132,8 @@ int main(int argc, char **argv)
         }
 
 
-        WaitForSingleObject(thread, INFINITE);
-        CloseHandle(thread);
+        //WaitForSingleObject(thread, INFINITE);
+        //CloseHandle(thread);
         
         closesocket(sock);
         WSACleanup();
