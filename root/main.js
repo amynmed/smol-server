@@ -1,3 +1,3 @@
 
 const h     = document.getElementById("text-to-display");
-h.innerHTML = "You are being served";
+h.innerHTML = "SMOLSERVER";
