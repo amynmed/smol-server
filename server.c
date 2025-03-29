@@ -1,5 +1,4 @@
 
-
 #include <stdio.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -12,9 +11,18 @@
 // =====================
 // =====================
 
-#define ENABLE_LOGGING 1  
+#define ENABLE_LOGGING 1
 
-#define LOG(level, format, ...) \
+#define RESET   "\x1b[0m"
+#define RED     "\x1b[31m" 
+#define GREEN   "\x1b[32m"  
+#define YELLOW  "\x1b[33m"  
+#define BLUE    "\x1b[34m"
+#define MAGENTA "\x1b[35m"
+#define CYAN    "\x1b[36m"
+#define WHITE   "\x1b[37m"
+
+#define LOG(level, color, format, ...) \
     do \
     { \
         if (ENABLE_LOGGING) \
@@ -23,15 +31,15 @@
             struct tm *t = localtime(&now); \
             char time_buf[20]; \
             strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", t); \
-            fprintf(stderr, "[%s] %s:%d:%s() [%s] " format "\n", \
-                    time_buf, __FILE__, __LINE__, __func__, level, ##__VA_ARGS__); \
+            fprintf(stderr, "%s[%s] %s:%d:%s() [%s] " format "%s\n", \
+                    color, time_buf, __FILE__, __LINE__, __func__, level, ##__VA_ARGS__, RESET); \
         } \
     } while (0)
 
-#define LOG_INFO(format, ...)  LOG("INFO" , format, ##__VA_ARGS__)
-#define LOG_WARN(format, ...)  LOG("WARN" , format, ##__VA_ARGS__)
-#define LOG_ERROR(format, ...) LOG("ERROR", format, ##__VA_ARGS__)
-#define LOG_DEBUG(format, ...) LOG("DEBUG", format, ##__VA_ARGS__)
+#define LOG_INFO(format, ...)  LOG("INFO",  GREEN,  format, ##__VA_ARGS__)
+#define LOG_WARN(format, ...)  LOG("WARN",  YELLOW, format, ##__VA_ARGS__)
+#define LOG_ERROR(format, ...) LOG("ERROR", RED,    format, ##__VA_ARGS__)
+#define LOG_DEBUG(format, ...) LOG("DEBUG", BLUE,   format, ##__VA_ARGS__)
 
 // =====================
 // =====================
@@ -52,6 +60,7 @@
 const char *HTTP_HEADER_FORMAT;
 
 void  get_requested_path(char *request_buffer, char *dest_path);
+long  get_file_size(FILE *file);
 int   send_file(SOCKET socket , FILE *file);
 int   get_file(char *file_path, FILE **file);
 DWORD WINAPI th_serve(LPVOID lpParam) ;
@@ -77,7 +86,7 @@ typedef struct
 const char *HTTP_HEADER_FORMAT = "HTTP/1.1 %s\r\n"
                                  "Cache-Control: no-cache\r\n"
                                  "Content-Type: %s\r\n"
-                                 "\r\n";
+                                 "\r\n\0";
 
 // ======
 // ======
@@ -218,7 +227,8 @@ int main(int argc, char **argv)
         LOG_INFO("Joining threads\n");
         WaitForMultipleObjects(MAX_THREADS, thread, TRUE, INFINITE);
 
-        for (int i = 0; i < MAX_THREADS; i++) CloseHandle(thread[i]);
+        for (int i = 0; i < MAX_THREADS; i++)
+                CloseHandle(thread[i]);
 
         
         closesocket(sock);
@@ -247,7 +257,8 @@ void get_requested_path(char *request_buffer, char *dest_path)
 
         LOG_DEBUG("GOT PATH : %s", file_path);
 
-        strcpy(dest_path, file_path);
+        if(file_path)
+                strcpy(dest_path, file_path);
 
 }
 
@@ -291,14 +302,14 @@ DWORD WINAPI th_serve(LPVOID lpParam)
                  params->client_port);
 
         // ** FOR DEBUG
-        //Sleep(3000);
+        // Sleep(3000);
 
         char received_buffer     [4096];
         char requested_file_path [256];
         char file_extension      [128];
 
         char file_content        [4096];
-        char response_buffer     [4096];
+        char response_buffer     [256];
 
         int n_bytes;
 
@@ -329,9 +340,11 @@ DWORD WINAPI th_serve(LPVOID lpParam)
                 else
                         LOG_INFO("GOT FILE");
                 
+                /*
                 char test_buffer[4096];
                 fread(test_buffer, 1, sizeof test_buffer, file);
                 LOG_DEBUG("TEST_FILE_BUFFER :\n %s", test_buffer);
+                */
 
 
 
@@ -370,15 +383,17 @@ DWORD WINAPI th_serve(LPVOID lpParam)
                                 "text/html; charset=UTF-8"
                         );
                 }
+
+                // TEST RESPONSE BUFFER
+                //LOG_("TEST_REPONSE_HEADER_BUFFER_____________________ :\n %s", response_buffer);
+
                 
                 // add content
                 //strcat(response_buffer, file_content);
-
-
                 
                 //
                 
-                send(params->socket, response_buffer, sizeof response_buffer, params->flags);
+                send(params->socket, response_buffer, strlen(response_buffer), params->flags);
 
                 LOG_DEBUG("HEADER SENT :\n %s", response_buffer);
                 
@@ -402,7 +417,7 @@ DWORD WINAPI th_serve(LPVOID lpParam)
                 LOG_ERROR("recv failed with error: %d\n", WSAGetLastError());
                 closesocket(params->socket);
                 free(params);
-                //WSACleanup();
+                WSACleanup();
                 return 1;
         }
 
@@ -418,7 +433,9 @@ int get_file(char *file_path, FILE **file)
 
         char full_path[256] = ROOT_PATH;
 
-        if(strcmp(file_path, "/"))
+        if(file_path == NULL)
+                strcat(full_path, "\\index.html");
+        else if(strcmp(file_path, "/") != 0)
                 strcat(full_path, file_path);
         else
                 strcat(full_path, "\\index.html");
@@ -426,8 +443,8 @@ int get_file(char *file_path, FILE **file)
 
         LOG_DEBUG("file path : %s\n", full_path);
         
-        //
-        *file = fopen(full_path, "r");
+        // in binary mode
+        *file = fopen(full_path, "rb");
 
         LOG_DEBUG("file opened : %s\n", full_path);
 
@@ -446,30 +463,37 @@ int send_file(SOCKET socket, FILE *file)
 {
         char buffer[4096];
 
-        size_t n_bytes;
-
+        size_t bytes_read;
 
         LOG_INFO("SENDING FILE ...");
+        LOG_INFO("FILE SIZE : %d", get_file_size(file));
 
         if(file)
         {
                 LOG_DEBUG("FILE NOT NULL");
-                while ((n_bytes = fread(buffer, 1, sizeof buffer, file)) > 0) 
+                // Read file in chunks and send
+                while ((bytes_read = fread(buffer, 1, sizeof buffer, file)) > 0) 
                 {
-                        LOG_INFO("SENDING CHUNK");
+                        // LOG_DEBUG("BYTES READ : %zu", bytes_read);
+                        // LOG_DEBUG("BUFFER READ :\n %s", buffer);
 
-                        size_t bytes_sent = 0;
-                        while (bytes_sent < n_bytes) 
+                        LOG_DEBUG("Read %zu bytes from file", bytes_read);
+                        // Print first 50 bytes for debugging (hex format)
+                        LOG_DEBUG("Previewing 64 Bytes from buffer:\n");
+                        for (size_t i = 0; i < bytes_read && i < 64; i++) 
                         {
-                                int result = send(socket, buffer + bytes_sent, n_bytes - bytes_sent, 0);
-                                LOG_INFO("CHUNK SENT: %s", buffer);
-                                if (result == SOCKET_ERROR) 
-                                {
-                                        LOG_ERROR("ERROR SENDING DATA");
-                                        fclose(file);
-                                        return 1;
-                                }
-                                bytes_sent += result; 
+                                printf("%02X ", (unsigned char)buffer[i]);
+                                if(!((i+1) % 8)) printf("\n");
+                        }
+                        printf("\n");
+
+
+                        if (send(socket, buffer, bytes_read, 0) != bytes_read) 
+                        {
+                                perror("send failed");
+                                fclose(file);
+                                closesocket(socket);
+                                exit(EXIT_FAILURE);
                         }
                 }
         }
@@ -482,6 +506,14 @@ int send_file(SOCKET socket, FILE *file)
         
         fclose(file);
         return 0;
+}
+
+long get_file_size(FILE *file) 
+{
+        fseek(file, 0, SEEK_END);
+        long size = ftell(file);
+        rewind(file);          
+        return size;
 }
 
 // ======================================================================
