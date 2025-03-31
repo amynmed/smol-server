@@ -5,7 +5,7 @@
 
 ---
 
-A simple multithreaded web server in C. A lot of features can be added but the goal of this project was to simply learn the basics of network programming and familiarize myself with C.
+A simple multithreaded web server in C. A lot of features can be added but the goal of this project was to simply learn the basics of network programming, multithreading and familiarize myself with C.
 # Usage
 ```
 make
