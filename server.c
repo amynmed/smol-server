@@ -5,6 +5,7 @@
 #include <time.h>
 #include <string.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #pragma comment(lib, "ws2_32.lib") // winsock lib
 
@@ -50,8 +51,6 @@
 #define INDEX           "index.html"
 
 #define MAX_THREADS     256
-
-
 
 
 // =====================
@@ -170,7 +169,8 @@ int main(int argc, char **argv)
         int c = sizeof(struct sockaddr_in);
 
         // cannot handle more than one connection at a time.
-        while(new_sock != INVALID_SOCKET)
+        // while(new_sock != INVALID_SOCKET)
+        while(true)
         {
                 LOG_INFO("awaiting incoming connections ...\n");
 
@@ -178,10 +178,24 @@ int main(int argc, char **argv)
 
                 if(new_sock == INVALID_SOCKET)
                 {
-                        LOG_ERROR("accept failed : ERROR::%d\n", WSAGetLastError());
-                        WSACleanup();
-                        return 1;
+                        int error = WSAGetLastError();
+                        LOG_ERROR("accept failed : ERROR::%d\n", error);
+                        if(error == WSAENETDOWN || error == WSAEINTR) {
+                                LOG_ERROR("Critical error, shutting down...\n");
+                                break;
+                        }
+                        
+                        Sleep(100);
+                        continue;
                 }
+
+                if (current_thread_id >= MAX_THREADS) 
+                {
+                        LOG_ERROR("Thread limit exeeded.\n");
+                        closesocket(new_sock);
+                        continue;
+                }
+
 
                 LOG_INFO("connection accepted\n");
 
@@ -311,7 +325,7 @@ DWORD WINAPI th_serve(LPVOID lpParam)
         char response_buffer     [256];
 
         int n_bytes;
-
+        
         n_bytes = recv(params->socket, received_buffer, sizeof(received_buffer) - 1, 0);
 
         if(n_bytes > 0)
@@ -334,8 +348,33 @@ DWORD WINAPI th_serve(LPVOID lpParam)
 
                 FILE *file = NULL;
 
+
+                // **There is a problem here
+                // ==========================
                 if(get_file(requested_file_path, &file))
-                        LOG_ERROR("ERROR READING FILE CONTENT");
+                {
+                        LOG_ERROR("error reading file");
+
+                        snprintf
+                        (
+                                response_buffer,
+                                sizeof response_buffer,
+                                HTTP_HEADER_FORMAT,
+                                "404 Not Found",
+                                "text/html;"
+                        );
+
+                        strcat(response_buffer, "<html>\n <body> <h1> 404 Not Found </h1> </body></html>");
+
+                        send(params->socket, response_buffer, strlen(response_buffer), 0);
+
+                        closesocket(params->socket);
+                        free(params);
+                        //WSACleanup();
+                        return 1;
+
+                }
+                        
                 else
                         LOG_INFO("GOT FILE");
                 
@@ -351,7 +390,8 @@ DWORD WINAPI th_serve(LPVOID lpParam)
                 //
                 if (strcmp(file_extension, "js") == 0)
                 {
-                        snprintf(
+                        snprintf
+                        (
                                 response_buffer,
                                 sizeof response_buffer,
                                 HTTP_HEADER_FORMAT,
@@ -363,7 +403,8 @@ DWORD WINAPI th_serve(LPVOID lpParam)
                 else if (strcmp(file_extension, "ico") == 0)
 
                 {
-                        snprintf(
+                        snprintf
+                        (
                                 response_buffer,
                                 sizeof response_buffer,
                                 HTTP_HEADER_FORMAT,
@@ -374,7 +415,8 @@ DWORD WINAPI th_serve(LPVOID lpParam)
 
                 else
                 {
-                        snprintf(
+                        snprintf
+                        (
                                 response_buffer,
                                 sizeof response_buffer,
                                 HTTP_HEADER_FORMAT,
@@ -382,15 +424,6 @@ DWORD WINAPI th_serve(LPVOID lpParam)
                                 "text/html; charset=UTF-8"
                         );
                 }
-
-                // TEST RESPONSE BUFFER
-                //LOG_("TEST_REPONSE_HEADER_BUFFER_____________________ :\n %s", response_buffer);
-
-                
-                // add content
-                //strcat(response_buffer, file_content);
-                
-                //
                 
                 send(params->socket, response_buffer, strlen(response_buffer), params->flags);
 
@@ -402,9 +435,6 @@ DWORD WINAPI th_serve(LPVOID lpParam)
                         LOG_ERROR("ERROR SENDING FILE");
                 else
                         LOG_DEBUG("CONTENT SENT ...");
-
-                // Default send
-                // send(params->socket, params->buf, params->len, params->flags);
                 
                 LOG_INFO("Response was sent ...\n");
         }
@@ -416,7 +446,6 @@ DWORD WINAPI th_serve(LPVOID lpParam)
                 LOG_ERROR("recv failed with error: %d\n", WSAGetLastError());
                 closesocket(params->socket);
                 free(params);
-                WSACleanup();
                 return 1;
         }
 
@@ -425,6 +454,7 @@ DWORD WINAPI th_serve(LPVOID lpParam)
 
         return 0;
 }
+
 // ===================================
 
 int get_file(char *file_path, FILE **file)
@@ -442,14 +472,13 @@ int get_file(char *file_path, FILE **file)
 
         LOG_DEBUG("file path : %s\n", full_path);
         
-        // in binary mode
         *file = fopen(full_path, "rb");
 
         LOG_DEBUG("file opened : %s\n", full_path);
 
         if(*file == NULL)
         {
-                LOG_ERROR("ERROR CANNOT READ INDEX FILE\n");
+                LOG_ERROR("Cannot read file.\n");
                 return 1;
         }
 
@@ -470,17 +499,17 @@ int send_file(SOCKET socket, FILE *file)
         if(file)
         {
                 LOG_DEBUG("FILE NOT NULL");
+
                 // Read file in chunks and send
                 while ((bytes_read = fread(buffer, 1, sizeof buffer, file)) > 0) 
                 {
-                        // LOG_DEBUG("BYTES READ : %zu", bytes_read);
-                        // LOG_DEBUG("BUFFER READ :\n %s", buffer);
 
                         LOG_DEBUG("Read %zu bytes from file", bytes_read);
                         LOG_DEBUG("Previewing 64 Bytes from buffer:\n");
                         for (size_t i = 0; i < bytes_read && i < 64; i++) 
                         {
                                 printf("%02X ", (unsigned char)buffer[i]);
+                                // show square
                                 if(!((i+1) % 8)) printf("\n");
                         }
                         printf("\n");
