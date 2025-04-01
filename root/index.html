@@ -6,26 +6,36 @@
                 <link rel="preconnect" href="https://fonts.googleapis.com">
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
                 <link href="https://fonts.googleapis.com/css2?family=Bytesized&display=swap" rel="stylesheet">
+
+                <link rel="preconnect" href="https://fonts.googleapis.com">
+                <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+                <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap" rel="stylesheet">
+
                 <style>
+                        *
+                        {
+                                font-family: "Nunito", sans-serif;
+                        }
                         body
                         {
                                 display         : flex;
                                 justify-content : center;
+                                flex-direction  : column;
                         }
                         .smol span
                         {
-                                color : rgb(28, 120, 242);
+                                font-family : 'Bytesized';
+                                color : rgb(211, 224, 241);
                         }
                         .smol
                         {
                                 display     : flex;
                                 align-items : center;
-                                padding     : 10px;
-                                font-family : 'Bytesized';
+                                padding     : 20px;
                                 font-size   : xx-large;
                                 width       : 100%;
                                 height      : 50px;
-                                background  : linear-gradient(rgb(192, 192, 192), rgb(245, 245, 245), 90deg);
+                                background-color : black;
                                 border-bottom : solid 1px black;
                         }
                 </style> 
@@ -38,6 +48,6 @@
                 <h1 id="text-to-display"> </h1>
         </body>
 
-        <script src="main.js"/>
+        <script src="main.js"></script>
 
 </html>
