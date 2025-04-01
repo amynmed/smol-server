@@ -13,3 +13,5 @@ A simple multithreaded web server in C. A lot of features can be added but the g
 make
 make run
 ```
+# TODOs
+- [ ] Implement a thread pool instead
