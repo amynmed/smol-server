@@ -1,8 +1,8 @@
 
-EXEC_NAME = server
+PROG = server
 
 main:
-	gcc -o $(EXEC_NAME) server.c -lws2_32
+	gcc -o $(PROG) server.c -lws2_32
 
 run: 
-	./$(EXEC_NAME)
+	./$(PROG)

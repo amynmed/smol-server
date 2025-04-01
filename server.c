@@ -49,7 +49,7 @@
 #define ROOT_PATH       "root"
 #define INDEX           "index.html"
 
-#define MAX_THREADS     128
+#define MAX_THREADS     256
 
 
 
@@ -86,13 +86,12 @@ typedef struct
 const char *HTTP_HEADER_FORMAT = "HTTP/1.1 %s\r\n"
                                  "Cache-Control: no-cache\r\n"
                                  "Content-Type: %s\r\n"
-                                 "\r\n\0";
+                                 "\r\n";
 
 // ======
 // ======
 
-// **TODO_1 : parse the path chosen by the client and fetch the requested file | X
-// **TODO_2 : use threadpools instead | ~
+// **TODO : use threadpools instead | ~
 //
 
 int main(int argc, char **argv)
@@ -478,7 +477,6 @@ int send_file(SOCKET socket, FILE *file)
                         // LOG_DEBUG("BUFFER READ :\n %s", buffer);
 
                         LOG_DEBUG("Read %zu bytes from file", bytes_read);
-                        // Print first 50 bytes for debugging (hex format)
                         LOG_DEBUG("Previewing 64 Bytes from buffer:\n");
                         for (size_t i = 0; i < bytes_read && i < 64; i++) 
                         {
@@ -493,7 +491,7 @@ int send_file(SOCKET socket, FILE *file)
                                 perror("send failed");
                                 fclose(file);
                                 closesocket(socket);
-                                exit(EXIT_FAILURE);
+                                return 1;
                         }
                 }
         }
