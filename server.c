@@ -30,13 +30,16 @@ int main(int argc, char **argv)
         struct sockaddr_in server, client;
 
         LOG_INFO("init winsock...\n");
+        LOG_INFO("init winsock...\n");
 
         if(WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
         {
                 LOG_ERROR("WSA init failed. %d \n", WSAGetLastError());
+                LOG_ERROR("WSA init failed. %d \n", WSAGetLastError());
                 return 1;
         }
 
+        LOG_INFO("WSA initialized.\n");
         LOG_INFO("WSA initialized.\n");
 
         // create socket
@@ -44,6 +47,7 @@ int main(int argc, char **argv)
 
         if(sock == INVALID_SOCKET)
         {
+                LOG_ERROR("cannot create socket : %d\n", WSAGetLastError());
                 LOG_ERROR("cannot create socket : %d\n", WSAGetLastError());
                 WSACleanup();
                 return 1;
@@ -55,6 +59,7 @@ int main(int argc, char **argv)
 	server.sin_addr.s_addr = INADDR_ANY;
 	server.sin_family      = AF_INET;
 	server.sin_port        = htons( DEFAULT_PORT );
+	server.sin_port        = htons( DEFAULT_PORT );
 
         // Binding to socket
         // --> By binding we ensure that incoming data is recieved by this process.
@@ -62,6 +67,7 @@ int main(int argc, char **argv)
 
         if(bind_state == SOCKET_ERROR)
         {
+                LOG_ERROR("Binding failed : %d\n", WSAGetLastError());
                 LOG_ERROR("Binding failed : %d\n", WSAGetLastError());
                 WSACleanup();
                 return 1;
@@ -92,6 +98,8 @@ int main(int argc, char **argv)
         // while(new_sock != INVALID_SOCKET)
         while(true)
         {
+                LOG_INFO("awaiting incoming connections ...\n");
+
                 LOG_INFO("awaiting incoming connections ...\n");
 
                 new_sock = accept(sock , (struct sockaddr *)&client, &c);
