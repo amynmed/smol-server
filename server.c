@@ -6,81 +6,10 @@
 #include <string.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "server.h"
 
 #pragma comment(lib, "ws2_32.lib") // winsock lib
 
-// =====================
-// =====================
-
-#define ENABLE_LOGGING 1
-
-#define RESET   "\x1b[0m"
-#define RED     "\x1b[31m" 
-#define GREEN   "\x1b[32m"  
-#define YELLOW  "\x1b[33m"  
-#define BLUE    "\x1b[34m"
-#define MAGENTA "\x1b[35m"
-#define CYAN    "\x1b[36m"
-#define WHITE   "\x1b[37m"
-
-#define LOG(level, color, format, ...) \
-    do \
-    { \
-        if (ENABLE_LOGGING) \
-        { \
-            time_t now   = time(NULL); \
-            struct tm *t = localtime(&now); \
-            char time_buf[20]; \
-            strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", t); \
-            fprintf(stderr, "%s[%s] %s:%d:%s() [%s] " format "%s\n", \
-                    color, time_buf, __FILE__, __LINE__, __func__, level, ##__VA_ARGS__, RESET); \
-        } \
-    } while (0)
-
-#define LOG_INFO(format, ...)  LOG("INFO",  GREEN,  format, ##__VA_ARGS__)
-#define LOG_WARN(format, ...)  LOG("WARN",  YELLOW, format, ##__VA_ARGS__)
-#define LOG_ERROR(format, ...) LOG("ERROR", RED,    format, ##__VA_ARGS__)
-#define LOG_DEBUG(format, ...) LOG("DEBUG", BLUE,   format, ##__VA_ARGS__)
-
-// =====================
-// =====================
-
-#define DEFAULT_PORT    8000
-
-#define ROOT_PATH       "root"
-#define INDEX           "index.html"
-
-#define MAX_THREADS     256
-
-
-// =====================
-// =====================
-
-const char *HTTP_HEADER_FORMAT;
-
-void  get_requested_path(char *request_buffer, char *dest_path);
-long  get_file_size(FILE *file);
-int   send_file(SOCKET socket , FILE *file);
-int   get_file(char *file_path, FILE **file);
-DWORD WINAPI th_serve(LPVOID lpParam) ;
-
-// Threading
-// ===================================
-typedef struct 
-{
-        SOCKET socket;
-        char   buf[4096];
-        int    len;
-        int    flags;
-        //
-        char  *client_ip;
-        int    client_port;
-        
-} send_params;
-
-
-// ======
-// ======
 
 const char *HTTP_HEADER_FORMAT = "HTTP/1.1 %s\r\n"
                                  "Cache-Control: no-cache\r\n"
@@ -92,7 +21,6 @@ const char *HTTP_HEADER_FORMAT = "HTTP/1.1 %s\r\n"
 
 // **TODO : use threadpools instead | ~
 //
-
 int main(int argc, char **argv)
 {
 
@@ -122,9 +50,7 @@ int main(int argc, char **argv)
         }
 
         LOG_INFO("Socket created.\n");
-        //
 
-        // Prepare the sockaddr_in structure
         //
 	server.sin_addr.s_addr = INADDR_ANY;
 	server.sin_family      = AF_INET;
@@ -143,10 +69,6 @@ int main(int argc, char **argv)
 
         LOG_INFO("Socket Bound\n");
 
-        
-        
-
-        //======================================
 
         // Threading
         // ======================================
@@ -155,9 +77,7 @@ int main(int argc, char **argv)
         
         int current_thread_id = 0;
         
-        
         // ======================================
-
 
         char *client_ip;
         int   client_port;
@@ -204,8 +124,6 @@ int main(int argc, char **argv)
 
                 LOG_INFO("got client info\n");
                 
-                
-                
                 LOG_INFO("setting send params\n");
 
                 send_params *sp = (send_params*)malloc(sizeof(send_params));
@@ -230,12 +148,7 @@ int main(int argc, char **argv)
 
                 current_thread_id++;
 
-
-                // printf("a response was sent to the client:\n");
-                // printf("client ip : %s\nclient_port : %d\n", client_ip, client_port);
-
         }
-
 
         LOG_INFO("Joining threads\n");
         WaitForMultipleObjects(MAX_THREADS, thread, TRUE, INFINITE);
@@ -243,14 +156,11 @@ int main(int argc, char **argv)
         for (int i = 0; i < MAX_THREADS; i++)
                 CloseHandle(thread[i]);
 
-        
         closesocket(sock);
         WSACleanup();
 
 
         return 0;
-
-
 
 } 
 // Main
@@ -307,7 +217,7 @@ void get_file_extension(char *file_path, char *dest_extension)
 
 DWORD WINAPI th_serve(LPVOID lpParam) 
 {
-        send_params* params = (send_params*)lpParam;
+        send_params *params = (send_params*)lpParam;
 
         LOG_INFO("Sending Response to client ...");
         LOG_INFO("client ip : %s, client_port : %d",
@@ -326,6 +236,9 @@ DWORD WINAPI th_serve(LPVOID lpParam)
 
         int n_bytes;
         
+        // this receives once 
+        // this will fail if the client sends data that is bigger than the buffer
+
         n_bytes = recv(params->socket, received_buffer, sizeof(received_buffer) - 1, 0);
 
         if(n_bytes > 0)
@@ -339,18 +252,13 @@ DWORD WINAPI th_serve(LPVOID lpParam)
 
                 get_file_extension(requested_file_path, file_extension);
 
-
                 LOG_DEBUG("PATH REQUESTED BY CLIENT: %s\n", requested_file_path);
                 LOG_DEBUG("PATH EXTENSTION : %s\n"        , file_extension);
-
                 // getting file content
                 LOG_DEBUG("Requested PATH: %s", requested_file_path);
 
                 FILE *file = NULL;
 
-
-                // **There is a problem here
-                // ==========================
                 if(get_file(requested_file_path, &file))
                 {
                         LOG_ERROR("error reading file");
@@ -370,20 +278,12 @@ DWORD WINAPI th_serve(LPVOID lpParam)
 
                         closesocket(params->socket);
                         free(params);
-                        //WSACleanup();
-                        return 1;
 
+                        return 1;
                 }
                         
                 else
                         LOG_INFO("GOT FILE");
-                
-                /*
-                char test_buffer[4096];
-                fread(test_buffer, 1, sizeof test_buffer, file);
-                LOG_DEBUG("TEST_FILE_BUFFER :\n %s", test_buffer);
-                */
-
 
 
                 // RESPONSE
@@ -401,7 +301,6 @@ DWORD WINAPI th_serve(LPVOID lpParam)
                 }
 
                 else if (strcmp(file_extension, "ico") == 0)
-
                 {
                         snprintf
                         (
@@ -459,7 +358,6 @@ DWORD WINAPI th_serve(LPVOID lpParam)
 
 int get_file(char *file_path, FILE **file)
 {
-
         char full_path[256] = ROOT_PATH;
 
         if(file_path == NULL)
@@ -481,7 +379,6 @@ int get_file(char *file_path, FILE **file)
                 LOG_ERROR("Cannot read file.\n");
                 return 1;
         }
-
 
         return 0;
 
@@ -509,7 +406,7 @@ int send_file(SOCKET socket, FILE *file)
                         for (size_t i = 0; i < bytes_read && i < 64; i++) 
                         {
                                 printf("%02X ", (unsigned char)buffer[i]);
-                                // show square
+                                // square shaped buffer
                                 if(!((i+1) % 8)) printf("\n");
                         }
                         printf("\n");
@@ -529,7 +426,6 @@ int send_file(SOCKET socket, FILE *file)
                 LOG_ERROR("ERROR READING FILE");
                 return 1;
         }
-
         
         fclose(file);
         return 0;
